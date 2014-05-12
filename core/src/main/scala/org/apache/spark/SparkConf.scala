@@ -162,24 +162,68 @@ class SparkConf(loadDefaults: Boolean) extends Cloneable with Logging {
   /** Get all parameters as a list of pairs */
   def getAll: Array[(String, String)] = settings.clone().toArray
 
+  /** Check a parameter for respecting given bounds */
+  def checkNumericInterval[T](key: String, v: T,
+                              vDef: T, vMin: T, vMax: T,
+                              defBadVal: Boolean)(implicit n:Numeric[T]): T = {
+    if (n.lt(vDef, vMin)  ||  n.gt(vDef, vMax)) {
+      val msg = s"parameter $key default ($vDef) outside valid range [$vMin, $vMax]"
+      throw new IllegalArgumentException(msg)
+    }
+    if (n.gteq(v, vMin)  &&  n.lteq(v, vMax)) return v
+    if (defBadVal) {
+      logWarning(s"parameter $key ($v) outside of valid range [$vMin, $vMax], defaulting to $vDef")
+      return vDef
+    }
+    val msg = s"parameter $key ($v) outside of valid range [$vMin, $vMax]"
+    throw new IllegalArgumentException(msg)
+  }
+
+  def getCastValue[T](key: String, vDef: T, defBadVal: Boolean,
+                      cast: String => T): T = {
+    try {
+      getOption(key).map(cast).getOrElse(vDef)
+    } catch {
+      case e: Exception => {
+        val name = vDef.getClass.getName
+        if (defBadVal) {
+          logWarning(s"failed to obtain value of type $name for $key, defaulting to $vDef")
+          return vDef
+        }
+        val msg = s"failed to obtain value of type $name for $key"
+        throw new IllegalArgumentException(msg)
+      }
+    }
+  }
+
   /** Get a parameter as an integer, falling back to a default if not set */
-  def getInt(key: String, defaultValue: Int): Int = {
-    getOption(key).map(_.toInt).getOrElse(defaultValue)
+  def getInt(key: String, defaultValue: Int,
+             minValue: Int = Int.MinValue, maxValue: Int = Int.MaxValue,
+             defaultBadValue: Boolean = false): Int = {
+    val v = getCastValue(key, defaultValue, defaultBadValue, (s:String)=>s.toInt)
+    checkNumericInterval(key, v, defaultValue, minValue, maxValue, defaultBadValue)
   }
 
   /** Get a parameter as a long, falling back to a default if not set */
-  def getLong(key: String, defaultValue: Long): Long = {
-    getOption(key).map(_.toLong).getOrElse(defaultValue)
+  def getLong(key: String, defaultValue: Long,
+              minValue: Long = Long.MinValue, maxValue: Long = Long.MaxValue,
+              defaultBadValue: Boolean = false): Long = {
+    val v = getCastValue(key, defaultValue, defaultBadValue, (s:String)=>s.toLong)
+    checkNumericInterval(key, v, defaultValue, minValue, maxValue, defaultBadValue)
   }
 
   /** Get a parameter as a double, falling back to a default if not set */
-  def getDouble(key: String, defaultValue: Double): Double = {
-    getOption(key).map(_.toDouble).getOrElse(defaultValue)
+  def getDouble(key: String, defaultValue: Double,
+              minValue: Double = Double.MinValue, maxValue: Double = Double.MaxValue,
+              defaultBadValue: Boolean = false): Double = {
+    val v = getCastValue(key, defaultValue, defaultBadValue, (s:String)=>s.toDouble)
+    checkNumericInterval(key, v, defaultValue, minValue, maxValue, defaultBadValue)
   }
 
   /** Get a parameter as a boolean, falling back to a default if not set */
-  def getBoolean(key: String, defaultValue: Boolean): Boolean = {
-    getOption(key).map(_.toBoolean).getOrElse(defaultValue)
+  def getBoolean(key: String, defaultValue: Boolean,
+                 defaultBadValue: Boolean = false): Boolean = {
+    getCastValue(key, defaultValue, defaultBadValue, (s:String)=>s.toBoolean)
   }
 
   /** Get all executor environment variables set on this SparkConf */

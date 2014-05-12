@@ -84,6 +84,88 @@ class SparkConfSuite extends FunSuite with LocalSparkContext {
     assert(conf.getOption("k4") === None)
   }
 
+  test("getInt") {
+    val conf = new SparkConf()
+    assert(conf.getInt("v", 42) === 42)
+    conf.set("v", "5")
+    assert(conf.getInt("v", 42) === 5)
+    conf.set("bad", "!!!")
+    intercept[IllegalArgumentException] { conf.getInt("bad", 42) }
+    assert(conf.getInt("bad", 42, defaultBadValue=true) === 42)
+    assert(conf.getInt("v", 3, maxValue=5) === 5)
+    assert(conf.getInt("v", 3, maxValue=5, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getInt("v", 3, maxValue=4) }
+    assert(conf.getInt("v", 3, maxValue=4, defaultBadValue=true) === 3)
+    assert(conf.getInt("v", 7, minValue=5) === 5)
+    assert(conf.getInt("v", 7, minValue=5, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getInt("v", 7, minValue=6) }
+    assert(conf.getInt("v", 7, minValue=6, defaultBadValue=true) === 7)
+    assert(conf.getInt("v", 4, minValue=4, maxValue=6) === 5)
+    assert(conf.getInt("v", 4, minValue=4, maxValue=6, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getInt("v", 7, minValue=6, maxValue=10) }
+    assert(conf.getInt("v", 7, minValue=6, maxValue=10, defaultBadValue=true) === 7)
+    intercept[IllegalArgumentException] { conf.getInt("v", 3, minValue=1, maxValue=4) }
+    assert(conf.getInt("v", 3, minValue=1, maxValue=4, defaultBadValue=true) === 3)
+  }
+
+  test("getLong") {
+    val conf = new SparkConf()
+    assert(conf.getLong("v", 42) === 42)
+    conf.set("v", "5")
+    assert(conf.getLong("v", 42) === 5)
+    conf.set("bad", "!!!")
+    intercept[IllegalArgumentException] { conf.getLong("bad", 42) }
+    assert(conf.getLong("bad", 42, defaultBadValue=true) === 42)
+    assert(conf.getLong("v", 3, maxValue=5) === 5)
+    assert(conf.getLong("v", 3, maxValue=5, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getLong("v", 3, maxValue=4) }
+    assert(conf.getLong("v", 3, maxValue=4, defaultBadValue=true) === 3)
+    assert(conf.getLong("v", 7, minValue=5) === 5)
+    assert(conf.getLong("v", 7, minValue=5, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getLong("v", 7, minValue=6) }
+    assert(conf.getLong("v", 7, minValue=6, defaultBadValue=true) === 7)
+    assert(conf.getLong("v", 4, minValue=4, maxValue=6) === 5)
+    assert(conf.getLong("v", 4, minValue=4, maxValue=6, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getLong("v", 7, minValue=6, maxValue=10) }
+    assert(conf.getLong("v", 7, minValue=6, maxValue=10, defaultBadValue=true) === 7)
+    intercept[IllegalArgumentException] { conf.getLong("v", 3, minValue=1, maxValue=4) }
+    assert(conf.getLong("v", 3, minValue=1, maxValue=4, defaultBadValue=true) === 3)
+  }
+
+  test("getDouble") {
+    val conf = new SparkConf()
+    assert(conf.getDouble("v", 42) === 42)
+    conf.set("v", "5")
+    assert(conf.getDouble("v", 42) === 5)
+    conf.set("bad", "!!!")
+    intercept[IllegalArgumentException] { conf.getDouble("bad", 42) }
+    assert(conf.getDouble("bad", 42, defaultBadValue=true) === 42)
+    assert(conf.getDouble("v", 3, maxValue=5) === 5)
+    assert(conf.getDouble("v", 3, maxValue=5, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getDouble("v", 3, maxValue=4) }
+    assert(conf.getDouble("v", 3, maxValue=4, defaultBadValue=true) === 3)
+    assert(conf.getDouble("v", 7, minValue=5) === 5)
+    assert(conf.getDouble("v", 7, minValue=5, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getDouble("v", 7, minValue=6) }
+    assert(conf.getDouble("v", 7, minValue=6, defaultBadValue=true) === 7)
+    assert(conf.getDouble("v", 4, minValue=4, maxValue=6) === 5)
+    assert(conf.getDouble("v", 4, minValue=4, maxValue=6, defaultBadValue=true) === 5)
+    intercept[IllegalArgumentException] { conf.getDouble("v", 7, minValue=6, maxValue=10) }
+    assert(conf.getDouble("v", 7, minValue=6, maxValue=10, defaultBadValue=true) === 7)
+    intercept[IllegalArgumentException] { conf.getDouble("v", 3, minValue=1, maxValue=4) }
+    assert(conf.getDouble("v", 3, minValue=1, maxValue=4, defaultBadValue=true) === 3)
+  }
+
+  test("getBoolean") {
+    val conf = new SparkConf()
+    assert(conf.getBoolean("v", true) === true)
+    conf.set("v", "false")
+    assert(conf.getBoolean("v", true) === false)
+    conf.set("bad", "!!!")
+    intercept[IllegalArgumentException] { conf.getBoolean("bad", true) }
+    assert(conf.getBoolean("bad", true, defaultBadValue=true) === true)
+  }
+
   test("creating SparkContext without master and app name") {
     val conf = new SparkConf(false)
     intercept[SparkException] { sc = new SparkContext(conf) }
