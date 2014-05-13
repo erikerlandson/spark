@@ -1044,7 +1044,7 @@ private[spark] object BlockManager extends Logging {
   val ID_GENERATOR = new IdGenerator
 
   def getMaxMemory(conf: SparkConf): Long = {
-    val memoryFraction = conf.getDouble("spark.storage.memoryFraction", 0.6)
+    val memoryFraction = conf.getDouble("spark.storage.memoryFraction", 0.6, minValue=0, maxValue=1)
     (Runtime.getRuntime.maxMemory * memoryFraction).toLong
   }
 

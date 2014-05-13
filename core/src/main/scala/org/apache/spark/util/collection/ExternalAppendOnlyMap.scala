@@ -74,8 +74,10 @@ class ExternalAppendOnlyMap[K, V, C](
 
   // Collective memory threshold shared across all running tasks
   private val maxMemoryThreshold = {
-    val memoryFraction = sparkConf.getDouble("spark.shuffle.memoryFraction", 0.3)
-    val safetyFraction = sparkConf.getDouble("spark.shuffle.safetyFraction", 0.8)
+    val memoryFraction = sparkConf.getDouble("spark.shuffle.memoryFraction", 0.3,
+                                             minValue=0, maxValue=1)
+    val safetyFraction = sparkConf.getDouble("spark.shuffle.safetyFraction", 0.8,
+                                             minValue=0, maxValue=1)
     (Runtime.getRuntime.maxMemory * memoryFraction * safetyFraction).toLong
   }
 

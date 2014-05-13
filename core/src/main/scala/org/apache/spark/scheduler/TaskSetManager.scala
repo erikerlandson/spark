@@ -66,7 +66,8 @@ private[spark] class TaskSetManager(
     conf.getLong("spark.scheduler.executorTaskBlacklistTime", 0L)
 
   // Quantile of tasks at which to start speculation
-  val SPECULATION_QUANTILE = conf.getDouble("spark.speculation.quantile", 0.75)
+  val SPECULATION_QUANTILE = conf.getDouble("spark.speculation.quantile", 0.75,
+                                            minValue=0, maxValue=1)
   val SPECULATION_MULTIPLIER = conf.getDouble("spark.speculation.multiplier", 1.5)
 
   // Serializer for closures and tasks.
