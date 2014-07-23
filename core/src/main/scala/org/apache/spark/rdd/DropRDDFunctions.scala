@@ -27,6 +27,25 @@ import org.apache.spark.{Logging, Partition, TaskContext}
  */
 class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializable {
 
+  // this version is something you could present to user visible API
+  // note this version forces computation of all parent partitions
+  def applyFunctionToPartitions[V: ClassTag](f: Seq[Iterator[T]] => V): RDD[V] = {
+    new RDD[V](self) {
+      // If there is a way to get list of parent partitions from worker environment, 
+      // I could just keep parent without pre-caching the partition array
+      val parent:RDD[T] = self
+      val plist = parent.partitions
+
+      // this RDD has just one partition, since it only holds a single value in a single row
+      override def getPartitions: Array[Partition] = Array(new Partition { override def index:Int = 0 })
+
+      // to compute the single output value, apply the function to the sequence of parent partitions
+      override def compute(prt: Partition, ctx: TaskContext): Iterator[V] = {
+        Array(f(plist.map(s => parent.iterator(s, ctx)))).iterator
+      }
+    }
+  }
+
 /**
  * Return a new RDD formed by dropping the first (n) elements of the input RDD
  */
@@ -134,5 +153,6 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
       }
     }    
   }
+
 
 }
