@@ -74,6 +74,11 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
     new PromiseRDD[V](expr, self.context, List(new FanOutDep(self))) 
   }
 
+  /**
+   * Return a PromiseRDD by applying function 'f' to a partition array.
+   * This can allow improved efficiency over promiseFromPartitions(), as it does not force
+   * call to iterator() method over entire partition list, if 'f' does not require it
+   */
   def promiseFromPartitionArray[V: ClassTag](f: (Array[Partition], RDD[T], TaskContext) => V): PromiseRDD[V] = {
     val expr = (ctx: TaskContext) => f(self.partitions, self, ctx)
     new PromiseRDD[V](expr, self.context, List(new FanOutDep(self))) 
