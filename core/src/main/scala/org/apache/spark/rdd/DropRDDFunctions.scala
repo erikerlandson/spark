@@ -29,7 +29,9 @@ class FanOutDep[T: ClassTag](rdd: RDD[T])
 }
 
 // Assuming parent RDD type having only one partition
-// This is not technically a narrow dep because it is one to many
+// Arguably, this is not technically a narrow dep because it is one to many
+// However it is not a shuffle dep, as it does not involve any changes to
+// data partitioning, or movement of data between partitions.
 class FanInDep[T: ClassTag](rdd: RDD[T]) extends NarrowDependency[T](rdd) {
   override def getParents(pid: Int) = List(0)
 }
@@ -110,8 +112,8 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
         p += 1
       }
 
-      // all elements were dropped
       if (rem > 0  ||  (rem == 0  &&  p >= partitions.length)) {
+        // all elements were dropped
         (p, 0)
       } else {
         // (if we get here, note that rem <= 0)
