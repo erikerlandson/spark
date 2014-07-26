@@ -122,44 +122,6 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
     }
   }
 
-  def drop2(n: Int):RDD[T] = {
-    if (n <= 0) return self
-
-    // locate partition that includes the nth element
-    val locate = (iter: Seq[Iterator[T]]) => {
-      var rem = n
-      var p = 0
-      var np = 0
-      while (rem > 0  &&  p < iter.length) {
-        np = iter(p).length
-        rem -= np
-        p += 1
-      }
-
-      if (rem > 0  ||  (rem == 0  &&  p >= iter.length)) {
-        // all elements were dropped
-        (p, 0)
-      } else {
-        // (if we get here, note that rem <= 0)
-        (p - 1, np + rem)
-      }
-    }
-
-    val locRDD = this.promiseFromPartitions(locate)
-
-    new RDD[T](self.context, List(new OneToOneDependency(self), new FanInDep(locRDD))) {
-      override def getPartitions: Array[Partition] = self.partitions.map(p => new DropPartition(p, locRDD))
-      override val partitioner = self.partitioner
-      override def compute(split: Partition, ctx: TaskContext):Iterator[T] = {
-        val dp = split.asInstanceOf[DropPartition[(Int, Int)]]
-        val (pFirst, pDrop) = dp.loc(ctx)
-        val parent = firstParent[T]
-        if (dp.index > pFirst) return parent.iterator(dp.pp, ctx)
-        if (dp.index == pFirst) return parent.iterator(dp.pp, ctx).drop(pDrop)
-        Iterator.empty
-      }
-    }
-  }
 
 /**
  * Return a new RDD formed by dropping the last (n) elements of the input RDD
