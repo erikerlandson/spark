@@ -19,7 +19,14 @@ package org.apache.spark.rdd
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{SparkContext, Logging, Partition, TaskContext, Dependency}
+import org.apache.spark.{SparkContext, Logging, Partition, TaskContext, 
+                         Dependency, NarrowDependency}
+
+
+class FanOutDep[T: ClassTag](rdd: RDD[T]) extends NarrowDependency[T](rdd) {
+  // Assuming child RDD type having only one partition
+  override def getParents(pid: Int) = (0 until rdd.partitions.length)
+}
 
 
 class PromisePartition extends Partition {
