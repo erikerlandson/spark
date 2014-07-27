@@ -57,7 +57,7 @@ class PromiseRDD[V: ClassTag](expr: TaskContext => V, context: SparkContext, dep
 class PromiseArgPartition(p: Partition, argv: Seq[PromiseRDD[_]]) extends Partition {
   override def index = p.index
   def partition: Partition = p
-  def arg(n: Int, ctx: TaskContext): Any = argv(n).iterator(new PromisePartition, ctx).next
+  def arg[V](n: Int, ctx: TaskContext): V = argv(n).iterator(new PromisePartition, ctx).next.asInstanceOf[V]
 }
 
 /**
@@ -122,7 +122,7 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
       override val partitioner = self.partitioner
       override def compute(split: Partition, ctx: TaskContext):Iterator[T] = {
         val dp = split.asInstanceOf[PromiseArgPartition]
-        val (pFirst, pDrop) = dp.arg(0, ctx).asInstanceOf[(Int,Int)]
+        val (pFirst, pDrop) = dp.arg[(Int,Int)](0, ctx)
         val parent = firstParent[T]
         if (dp.index > pFirst) return parent.iterator(dp.partition, ctx)
         if (dp.index == pFirst) return parent.iterator(dp.partition, ctx).drop(pDrop)
@@ -164,7 +164,7 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
       override val partitioner = self.partitioner
       override def compute(split: Partition, ctx: TaskContext):Iterator[T] = {
         val dp = split.asInstanceOf[PromiseArgPartition]
-        val (pFirst, pTake) = dp.arg(0, ctx).asInstanceOf[(Int,Int)]
+        val (pFirst, pTake) = dp.arg[(Int,Int)](0, ctx)
         val parent = firstParent[T]
         if (dp.index < pFirst) return parent.iterator(dp.partition, ctx)
         if (dp.index == pFirst) return parent.iterator(dp.partition, ctx).take(pTake)
@@ -202,7 +202,7 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
       override val partitioner = self.partitioner
       override def compute(split: Partition, ctx: TaskContext):Iterator[T] = {
         val dp = split.asInstanceOf[PromiseArgPartition]
-        val pFirst = dp.arg(0, ctx).asInstanceOf[Int]
+        val pFirst = dp.arg[Int](0, ctx)
         val parent = firstParent[T]
         if (dp.index > pFirst) return parent.iterator(dp.partition, ctx)
         if (dp.index == pFirst) return parent.iterator(dp.partition, ctx).dropWhile(f)
