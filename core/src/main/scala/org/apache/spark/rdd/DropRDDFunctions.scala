@@ -22,43 +22,18 @@ import scala.reflect.ClassTag
 import org.apache.spark.{SparkContext, Logging, Partition, TaskContext}
 import org.apache.spark.{Dependency, NarrowDependency, OneToOneDependency}
 
-// Assuming child RDD type having only one partition
-class FanOutDep[T: ClassTag](rdd: RDD[T])
-  extends NarrowDependency[T](rdd) {
+import org.apache.spark.SparkContext.rddToPromiseRDDFunctions
+
+class FanOutDep[T: ClassTag](rdd: RDD[T]) extends NarrowDependency[T](rdd) {
+  // Assuming child RDD type having only one partition
   override def getParents(pid: Int) = (0 until rdd.partitions.length)
 }
 
-// Assuming parent RDD type having only one partition
-// Arguably, this is not technically a narrow dep because it is one to many
-// However it is not a shuffle dep, as it does not involve any changes to
-// data partitioning, or movement of data between partitions.
 class FanInDep[T: ClassTag](rdd: RDD[T]) extends NarrowDependency[T](rdd) {
+  // Assuming parent RDD type having only one partition
   override def getParents(pid: Int) = List(0)
 }
 
-// A PromiseRDD has exactly one partition, by construction:
-class PromisePartition extends Partition {
-  override def index = 0
-}
-
-// A way to represent the concept of a promised expression as an RDD, so that it
-// can operate inside the lazy-transform formalism
-class PromiseRDD[V: ClassTag](expr: TaskContext => V, context: SparkContext, deps: Seq[Dependency[_]])
-  extends RDD[V](context, deps) {
-
-  // This RDD has exactly one partition by definition, since it will contain
-  // a single row holding the 'promised' result of evaluating 'expr' 
-  override def getPartitions = Array(new PromisePartition)
-
-  // compute evaluates 'expr', yielding an iterator over a sequence of length 1:
-  override def compute(p: Partition, ctx: TaskContext) = List(expr(ctx)).iterator
-}
-
-class PromiseArgPartition(p: Partition, argv: Seq[PromiseRDD[_]]) extends Partition {
-  override def index = p.index
-  def partition: Partition = p
-  def arg[V](n: Int, ctx: TaskContext): V = argv(n).iterator(new PromisePartition, ctx).next.asInstanceOf[V]
-}
 
 /**
  * Extra functions available on RDDs for providing the RDD analogs of Scala drop,
@@ -67,31 +42,8 @@ class PromiseArgPartition(p: Partition, argv: Seq[PromiseRDD[_]]) extends Partit
 class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializable {
 
   /**
-   * Return a PromiseRDD by applying function 'f' to the partitions of this RDD
+   * Return a new RDD formed by dropping the first (n) elements of the input RDD
    */
-  def promiseFromPartitions[V: ClassTag](f: Seq[Iterator[T]] => V): PromiseRDD[V] = {
-    val rdd = self
-    val plist = rdd.partitions
-    val expr = (ctx: TaskContext) => f(plist.map(s => rdd.iterator(s, ctx)))
-    new PromiseRDD[V](expr, rdd.context, List(new FanOutDep(rdd))) 
-  }
-
-  /**
-   * Return a PromiseRDD by applying function 'f' to a partition array.
-   * This can allow improved efficiency over promiseFromPartitions(), as it does not force
-   * call to iterator() method over entire partition list, if 'f' does not require it
-   */
-  def promiseFromPartitionArray[V: ClassTag](f: (Array[Partition], RDD[T], TaskContext) => V): PromiseRDD[V] = {
-    val rdd = self
-    val plist = rdd.partitions
-    val expr = (ctx: TaskContext) => f(plist, rdd, ctx)
-    new PromiseRDD[V](expr, rdd.context, List(new FanOutDep(rdd))) 
-  }
-
-
-/**
- * Return a new RDD formed by dropping the first (n) elements of the input RDD
- */
   def drop(n: Int):RDD[T] = {
     if (n <= 0) return self
 
@@ -115,11 +67,14 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
       }
     }
 
-    val locRDD = this.promiseFromPartitionArray(locate)
+    val locRDD = self.promiseFromPartitionArray(locate)
 
     new RDD[T](self.context, List(new OneToOneDependency(self), new FanInDep(locRDD))) {
-      override def getPartitions: Array[Partition] = self.partitions.map(p => new PromiseArgPartition(p, List(locRDD)))
+      override def getPartitions: Array[Partition] = 
+        self.partitions.map(p => new PromiseArgPartition(p, List(locRDD)))
+
       override val partitioner = self.partitioner
+
       override def compute(split: Partition, ctx: TaskContext):Iterator[T] = {
         val dp = split.asInstanceOf[PromiseArgPartition]
         val (pFirst, pDrop) = dp.arg[(Int,Int)](0, ctx)
@@ -132,9 +87,9 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
   }
 
 
-/**
- * Return a new RDD formed by dropping the last (n) elements of the input RDD
- */
+  /**
+   * Return a new RDD formed by dropping the last (n) elements of the input RDD
+   */
   def dropRight(n: Int):RDD[T] = {
     if (n <= 0) return self
 
@@ -157,11 +112,14 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
       }
     }
 
-    val locRDD = this.promiseFromPartitionArray(locate)
+    val locRDD = self.promiseFromPartitionArray(locate)
 
     new RDD[T](self.context, List(new OneToOneDependency(self), new FanInDep(locRDD))) {
-      override def getPartitions: Array[Partition] = self.partitions.map(p => new PromiseArgPartition(p, List(locRDD)))
+      override def getPartitions: Array[Partition] = 
+        self.partitions.map(p => new PromiseArgPartition(p, List(locRDD)))
+
       override val partitioner = self.partitioner
+
       override def compute(split: Partition, ctx: TaskContext):Iterator[T] = {
         val dp = split.asInstanceOf[PromiseArgPartition]
         val (pFirst, pTake) = dp.arg[(Int,Int)](0, ctx)
@@ -174,9 +132,9 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
   }  
 
 
-/**
- * Return a new RDD formed by dropping leading elements until predicate function (f) returns false
- */
+  /**
+   * Return a new RDD formed by dropping leading elements until predicate function (f) returns false
+   */
   def dropWhile(f: T=>Boolean):RDD[T] = {
 
     val locate = (partitions: Array[Partition], parent: RDD[T], ctx: TaskContext) => {
@@ -195,11 +153,14 @@ class DropRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Serializ
       }
     }
 
-    val locRDD = this.promiseFromPartitionArray(locate)
+    val locRDD = self.promiseFromPartitionArray(locate)
 
     new RDD[T](self) {
-      override def getPartitions: Array[Partition] = self.partitions.map(p => new PromiseArgPartition(p, List(locRDD)))
+      override def getPartitions: Array[Partition] = 
+        self.partitions.map(p => new PromiseArgPartition(p, List(locRDD)))
+
       override val partitioner = self.partitioner
+
       override def compute(split: Partition, ctx: TaskContext):Iterator[T] = {
         val dp = split.asInstanceOf[PromiseArgPartition]
         val pFirst = dp.arg[Int](0, ctx)
