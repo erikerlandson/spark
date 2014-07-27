@@ -39,7 +39,7 @@ class PromisePartition extends Partition {
  * A way to represent the concept of a promised expression as an RDD, so that it
  * can operate naturally inside the lazy-transform formalism
  */
-class PromiseRDD[V: ClassTag](expr: TaskContext => V,
+class PromiseRDD[V: ClassTag](expr: => (TaskContext => V),
                               context: SparkContext, deps: Seq[Dependency[_]])
   extends RDD[V](context, deps) {
 
