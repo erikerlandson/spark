@@ -25,6 +25,7 @@ import org.apache.spark.{Dependency, NarrowDependency, OneToOneDependency}
 import org.apache.spark.SparkContext.rddToPromiseRDDFunctions
 
 
+private [spark]
 class FanInDep[T: ClassTag](rdd: RDD[T]) extends NarrowDependency[T](rdd) {
   // Assuming parent RDD type having only one partition
   override def getParents(pid: Int) = List(0)

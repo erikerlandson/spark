@@ -23,12 +23,14 @@ import org.apache.spark.{SparkContext, Logging, Partition, TaskContext,
                          Dependency, NarrowDependency}
 
 
+private [spark]
 class FanOutDep[T: ClassTag](rdd: RDD[T]) extends NarrowDependency[T](rdd) {
   // Assuming child RDD type having only one partition
   override def getParents(pid: Int) = (0 until rdd.partitions.length)
 }
 
 
+private [spark]
 class PromisePartition extends Partition {
   // A PromiseRDD has exactly one partition, by construction:
   override def index = 0
@@ -39,6 +41,7 @@ class PromisePartition extends Partition {
  * A way to represent the concept of a promised expression as an RDD, so that it
  * can operate naturally inside the lazy-transform formalism
  */
+private [spark]
 class PromiseRDD[V: ClassTag](expr: => (TaskContext => V),
                               context: SparkContext, deps: Seq[Dependency[_]])
   extends RDD[V](context, deps) {
@@ -56,6 +59,7 @@ class PromiseRDD[V: ClassTag](expr: => (TaskContext => V),
  * A partition that augments a standard RDD partition with a list of PromiseRDD arguments,
  * so that they are available at partition compute time
  */
+private [spark]
 class PromiseArgPartition(p: Partition, argv: Seq[PromiseRDD[_]]) extends Partition {
   override def index = p.index
 
@@ -95,6 +99,7 @@ class PromiseRDDFunctions[T : ClassTag](self: RDD[T]) extends Logging with Seria
    * This can allow improved efficiency over promiseFromPartitions(), as it does not force
    * call to iterator() method over entire partition list, if 'f' does not require it
    */
+  private [spark]
   def promiseFromPartitionArray[V: ClassTag](f: (Array[Partition], 
                                              RDD[T], TaskContext) => V): PromiseRDD[V] = {
     val rdd = self
