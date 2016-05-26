@@ -31,14 +31,15 @@ object ChiSquared extends Impurity {
     throw new UnsupportedOperationException("ChiSquared.calculate")
 
   override def calculate(calcL: ImpurityCalculator, calcR: ImpurityCalculator): Double = {
-    val chisq = cht.chiSquareTest(
+    cht.chiSquareTest(
       Array(
         calcL.stats.map(_.toLong),
         calcR.stats.map(_.toLong)
       )
     )
-    -math.log(math.max(1e-10, chisq))
   }
+
+  override def isTestStatistic = true
 }
 
 private[spark] class ChiSquaredAggregator(numClasses: Int)

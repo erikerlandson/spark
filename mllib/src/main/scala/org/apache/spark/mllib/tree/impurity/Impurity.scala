@@ -56,6 +56,12 @@ trait Impurity extends Serializable {
   // By default this is undefined for backward compatability
   def calculate(calcL: ImpurityCalculator, calcR: ImpurityCalculator): Double =
     throw new UnsupportedOperationException("Impurity.calculate")
+
+  def isTestStatistic: Boolean = false
+}
+
+object Impurity {
+  def pValToGain(pval: Double): Double = -math.log(math.max(1e-20, pval))
 }
 
 /**

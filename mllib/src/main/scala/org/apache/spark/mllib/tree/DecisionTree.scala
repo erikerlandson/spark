@@ -744,7 +744,12 @@ object DecisionTree extends Serializable with Logging {
     val rightImpurity = rightImpurityCalculator.calculate()
 
     val gain = metadata.impurity match {
-      case ChiSquared => ChiSquared.calculate(leftImpurityCalculator, rightImpurityCalculator)
+      case imp if (imp.isTestStatistic) => {
+        val pval = imp.calculate(leftImpurityCalculator, rightImpurityCalculator)
+        println(f"  pval= $pval%.4g")
+        // Transform the test statistic p-val into a larger-is-better gain value
+        Impurity.pValToGain(pval)
+      }
 
       case _ => {
         val leftWeight = leftCount / totalCount.toDouble
@@ -757,9 +762,15 @@ object DecisionTree extends Serializable with Logging {
     }
     println(f"gain= $gain%6.4f")
 
+    // If the impurity being used is a test statistic p-val, apply a standard transform into
+    // a larger-is-better gain value for the minimum-gain threshold
+    val minGain =
+      if (metadata.impurity.isTestStatistic) Impurity.pValToGain(metadata.minInfoGain)
+      else metadata.minInfoGain
+
     // if information gain doesn't satisfy minimum information gain,
     // then this split is invalid, return invalid information gain stats.
-    if (gain < metadata.minInfoGain) {
+    if (gain < minGain) {
       return InformationGainStats.invalidInformationGainStats
     }
 
