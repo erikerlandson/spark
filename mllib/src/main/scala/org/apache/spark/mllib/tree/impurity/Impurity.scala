@@ -52,6 +52,10 @@ trait Impurity extends Serializable {
   @Since("1.0.0")
   @DeveloperApi
   def calculate(count: Double, sum: Double, sumSquares: Double): Double
+
+  // By default this is undefined for backward compatability
+  def calculate(calcL: ImpurityCalculator, calcR: ImpurityCalculator): Double =
+    throw new UnsupportedOperationException("Impurity.calculate")
 }
 
 /**
@@ -89,7 +93,6 @@ private[spark] abstract class ImpurityAggregator(val statsSize: Int) extends Ser
    * @param offset    Start index of stats for this (node, feature, bin).
    */
   def getCalculator(allStats: Array[Double], offset: Int): ImpurityCalculator
-
 }
 
 /**
@@ -178,4 +181,22 @@ private[spark] abstract class ImpurityCalculator(val stats: Array[Double]) exten
     result._1
   }
 
+}
+
+private[spark] object ImpurityCalculator {
+
+  /**
+   * Create an [[ImpurityCalculator]] instance of the given impurity type and with
+   * the given stats.
+   */
+  def getCalculator(impurity: String, stats: Array[Double]): ImpurityCalculator = {
+    impurity match {
+      case "gini" => new GiniCalculator(stats)
+      case "entropy" => new EntropyCalculator(stats)
+      case "variance" => new VarianceCalculator(stats)
+      case _ =>
+        throw new IllegalArgumentException(
+          s"ImpurityCalculator builder did not recognize impurity type: $impurity")
+    }
+  }
 }

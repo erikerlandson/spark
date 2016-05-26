@@ -743,10 +743,18 @@ object DecisionTree extends Serializable with Logging {
     val leftImpurity = leftImpurityCalculator.calculate() // Note: This equals 0 if count = 0
     val rightImpurity = rightImpurityCalculator.calculate()
 
-    val leftWeight = leftCount / totalCount.toDouble
-    val rightWeight = rightCount / totalCount.toDouble
+    val gain = metadata.impurity match {
+      case ChiSquared => ChiSquared.calculate(leftImpurityCalculator, rightImpurityCalculator)
 
-    val gain = impurity - leftWeight * leftImpurity - rightWeight * rightImpurity
+      case _ => {
+        val leftWeight = leftCount / totalCount.toDouble
+        val rightWeight = rightCount / totalCount.toDouble
+
+        println(s"imp= $impurity, impL= $leftImpurity, impR= $rightImpurity")
+        impurity - leftWeight * leftImpurity - rightWeight * rightImpurity
+      }
+    }
+    println(s"gain= $gain")
 
     // if information gain doesn't satisfy minimum information gain,
     // then this split is invalid, return invalid information gain stats.

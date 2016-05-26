@@ -627,13 +627,23 @@ private[ml] object RandomForest extends Logging {
       return ImpurityStats.getInvalidImpurityStats(parentImpurityCalculator)
     }
 
-    val leftImpurity = leftImpurityCalculator.calculate() // Note: This equals 0 if count = 0
-    val rightImpurity = rightImpurityCalculator.calculate()
+    import org.apache.spark.mllib.tree.impurity.ChiSquared
 
-    val leftWeight = leftCount / totalCount.toDouble
-    val rightWeight = rightCount / totalCount.toDouble
+    println(s"imp= ${metadata.impurity}   impurity= $impurity")
+    val gain = metadata.impurity match {
+      case ChiSquared => ChiSquared.calculate(leftImpurityCalculator, rightImpurityCalculator)
 
-    val gain = impurity - leftWeight * leftImpurity - rightWeight * rightImpurity
+      case _ => {
+        val leftImpurity = leftImpurityCalculator.calculate() // Note: This equals 0 if count = 0
+        val rightImpurity = rightImpurityCalculator.calculate()
+
+        val leftWeight = leftCount / totalCount.toDouble
+        val rightWeight = rightCount / totalCount.toDouble
+
+        impurity - leftWeight * leftImpurity - rightWeight * rightImpurity
+      }
+    }
+    println(s"gain= $gain")
 
     // if information gain doesn't satisfy minimum information gain,
     // then this split is invalid, return invalid information gain stats.
