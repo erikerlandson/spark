@@ -750,11 +750,12 @@ object DecisionTree extends Serializable with Logging {
         val leftWeight = leftCount / totalCount.toDouble
         val rightWeight = rightCount / totalCount.toDouble
 
-        println(s"imp= $impurity, impL= $leftImpurity, impR= $rightImpurity")
-        impurity - leftWeight * leftImpurity - rightWeight * rightImpurity
+        val weighted = leftWeight * leftImpurity + rightWeight * rightImpurity
+        println(f"  impurity parent= $impurity%6.4f, left= $leftImpurity%6.4f ($leftCount%4d), right= $rightImpurity%6.4f ($rightCount%4d) weighted= $weighted%6.4f")
+        impurity - weighted
       }
     }
-    println(s"gain= $gain")
+    println(f"gain= $gain%6.4f")
 
     // if information gain doesn't satisfy minimum information gain,
     // then this split is invalid, return invalid information gain stats.
