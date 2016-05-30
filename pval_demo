@@ -23,7 +23,7 @@ object demo {
     t1 ++ t2
   }
 
-  lazy val catInfo = Map(Vector.tabulate(10) { j => (j, 2) } :_*)
+  lazy val catInfo = Map(Vector.tabulate(10 + 5) { j => (j, 2) } :_*)
 
   def toGain(pval: Double) = -math.log(pval)
 
