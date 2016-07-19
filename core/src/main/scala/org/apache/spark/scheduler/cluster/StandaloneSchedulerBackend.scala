@@ -28,6 +28,12 @@ import org.apache.spark.rpc.RpcEndpointAddress
 import org.apache.spark.scheduler._
 import org.apache.spark.util.Utils
 
+
+trait SchedulerBackendPlugin {
+  def test = "yay!"
+}
+
+
 /**
  * A [[SchedulerBackend]] implementation for Spark's standalone cluster manager.
  */
