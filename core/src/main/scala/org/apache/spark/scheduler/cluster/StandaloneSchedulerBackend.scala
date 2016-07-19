@@ -30,7 +30,7 @@ import org.apache.spark.util.Utils
 
 
 trait SchedulerBackendPlugin {
-  def test = "yay!"
+  def test: String = "yay!"
 }
 
 
