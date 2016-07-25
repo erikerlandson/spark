@@ -116,6 +116,8 @@ if [ ! "$(command -v "$MVN")" ] ; then
     exit -1;
 fi
 
+cd "$SPARK_HOME"
+
 VERSION=$("$MVN" help:evaluate -Dexpression=project.version $@ 2>/dev/null | grep -v "INFO" | tail -n 1)
 SCALA_VERSION=$("$MVN" help:evaluate -Dexpression=scala.binary.version $@ 2>/dev/null\
     | grep -v "INFO"\
@@ -143,8 +145,6 @@ else
 fi
 
 # Build uber fat JAR
-cd "$SPARK_HOME"
-
 export MAVEN_OPTS="${MAVEN_OPTS:--Xmx2g -XX:MaxPermSize=512M -XX:ReservedCodeCacheSize=512m}"
 
 # Store the command as an array because $MVN variable might have spaces in it.
