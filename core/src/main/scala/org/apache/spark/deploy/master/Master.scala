@@ -38,6 +38,10 @@ import org.apache.spark.rpc._
 import org.apache.spark.serializer.{JavaSerializer, Serializer}
 import org.apache.spark.util.{ThreadUtils, Utils}
 
+trait WorkerScaleoutService {
+  def request(newTotalWorkers: Int): Boolean
+}
+
 private[deploy] class Master(
     override val rpcEnv: RpcEnv,
     address: RpcAddress,
@@ -863,10 +867,45 @@ private[deploy] class Master(
         logInfo(s"Application $appId requested to set total executors to $requestedTotal.")
         appInfo.executorLimit = requestedTotal
         schedule()
+        // eje experimental
+        val unservicedCores = waitingApps.iterator.map(_.coresLeft).sum
+        val requestedCores = waitingApps.iterator.map(a => a.coresLeft + a.coresGranted).sum
+        val unservicedRatio = unservicedCores.toDouble / requestedCores.toDouble
+        if (unservicedRatio > 0.10) {
+          logWarning(s"Unserviced core ratio is $unservicedRatio - requesting workers")
+          requestWorkers()
+        }
         true
       case None =>
         logWarning(s"Unknown application $appId requested $requestedTotal total executors.")
         false
+    }
+  }
+
+  private def requestWorkers(): Unit = {
+    // following is test code - eje
+    import java.util.ServiceLoader
+    import scala.collection.JavaConverters._
+    val loader = ServiceLoader.load(classOf[WorkerScaleoutService]).asScala
+    val service: Option[WorkerScaleoutService] = loader.iterator.toList match {
+      case Nil => None
+      case s :: Nil => Some(s)
+      case ss : List[_] =>
+        logWarning(
+          s"WARNING - Multiple (${ss.length}) worker scaleout services configured:" +
+          s"${ss.map(_.getClass.getName)}"
+          )
+        None
+    }
+    service.foreach { sv =>
+      logWarning(s"Configured worker scaleout service: ${sv.getClass.getName}")
+      val currentWorkers = workers.iterator.filter(_.state == WorkerState.ALIVE).length
+      val newWorkers = 1
+      val totalWorkers = currentWorkers + newWorkers
+      logWarning(s"Requesting $newWorkers new worker nodes ($totalWorkers total)")
+      if (!sv.request(totalWorkers)) {
+        logWarning(s"Request for $newWorkers new worker nodes ($totalWorkers total) failed")
+      }
     }
   }
 

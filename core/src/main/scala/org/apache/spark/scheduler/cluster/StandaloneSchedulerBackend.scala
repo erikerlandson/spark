@@ -28,12 +28,6 @@ import org.apache.spark.rpc.RpcEndpointAddress
 import org.apache.spark.scheduler._
 import org.apache.spark.util.Utils
 
-
-trait SchedulerBackendPlugin {
-  def test: String = "yay!"
-}
-
-
 /**
  * A [[SchedulerBackend]] implementation for Spark's standalone cluster manager.
  */
@@ -114,12 +108,6 @@ private[spark] class StandaloneSchedulerBackend(
     launcherBackend.setState(SparkAppHandle.State.SUBMITTED)
     waitForRegistration()
     launcherBackend.setState(SparkAppHandle.State.RUNNING)
-    // following is test code - eje
-    import java.util.ServiceLoader
-    import scala.collection.JavaConverters._
-    val loader = ServiceLoader.load(classOf[SchedulerBackendPlugin]).asScala
-    val sbServices = loader.iterator.toList
-    logWarning(s"found ${sbServices.length} scheduler backend services: ${sbServices.map(_.test)}")
   }
 
   override def stop(): Unit = synchronized {
