@@ -39,7 +39,7 @@ import org.apache.spark.serializer.{JavaSerializer, Serializer}
 import org.apache.spark.util.{ThreadUtils, Utils}
 
 trait WorkerScaleoutService {
-  def request(newTotalWorkers: Int): Boolean
+  def request(newTotalWorkers: Int): scala.util.Try[Int]
 }
 
 private[deploy] class Master(
@@ -871,6 +871,7 @@ private[deploy] class Master(
         val unservicedCores = waitingApps.iterator.map(_.coresLeft).sum
         val requestedCores = waitingApps.iterator.map(a => a.coresLeft + a.coresGranted).sum
         val unservicedRatio = unservicedCores.toDouble / requestedCores.toDouble
+        logWarning(s"unservicedCores= $unservicedCores  requestedCores= $requestedCores")
         if (unservicedRatio > 0.10) {
           logWarning(s"Unserviced core ratio is $unservicedRatio - requesting workers")
           requestWorkers()
@@ -892,7 +893,7 @@ private[deploy] class Master(
       case s :: Nil => Some(s)
       case ss : List[_] =>
         logWarning(
-          s"WARNING - Multiple (${ss.length}) worker scaleout services configured:" +
+          s"Multiple (${ss.length}) worker scaleout services configured:" +
           s"${ss.map(_.getClass.getName)}"
           )
         None
@@ -903,8 +904,13 @@ private[deploy] class Master(
       val newWorkers = 1
       val totalWorkers = currentWorkers + newWorkers
       logWarning(s"Requesting $newWorkers new worker nodes ($totalWorkers total)")
-      if (!sv.request(totalWorkers)) {
-        logWarning(s"Request for $newWorkers new worker nodes ($totalWorkers total) failed")
+      sv.request(totalWorkers) match {
+        case scala.util.Failure(e) =>
+          logWarning(s"Worker scaleout request failed: ${e.getMessage}")
+        case scala.util.Success(received) if (received < totalWorkers) =>
+          logWarning(s"Worker scaleout request received only $received of $totalWorkers")
+        case _ =>
+          logInfo(s"Worker scaleout request succeeded with $totalWorkers total workers")
       }
     }
   }
