@@ -38,8 +38,9 @@ import org.apache.spark.rpc._
 import org.apache.spark.serializer.{JavaSerializer, Serializer}
 import org.apache.spark.util.{ThreadUtils, Utils}
 
+// Possible rename to ExecutorScaleoutService?
 trait WorkerScaleoutService {
-  def request(newTotalWorkers: Int): scala.util.Try[Int]
+  def request(curWorkers: Int, curExecutors: Int, reqExecutors: Int): scala.util.Try[Int]
 }
 
 private[deploy] class Master(
@@ -868,14 +869,19 @@ private[deploy] class Master(
         appInfo.executorLimit = requestedTotal
         schedule()
         // eje experimental
-        val unservicedCores = waitingApps.iterator.map(_.coresLeft).sum
-        val requestedCores = waitingApps.iterator.map(a => a.coresLeft + a.coresGranted).sum
-        val unservicedRatio = unservicedCores.toDouble / requestedCores.toDouble
-        logWarning(s"unservicedCores= $unservicedCores  requestedCores= $requestedCores")
-        if (unservicedRatio > 0.10) {
-          logWarning(s"Unserviced core ratio is $unservicedRatio - requesting workers")
-          requestWorkers()
+        val curExecutors = appInfo.executors.size
+        logWarning(s"reqExecutors= $requestedTotal  curExecutors= $curExecutors")
+        if (curExecutors < requestedTotal) {
+          requestWorkers(appInfo)
         }
+        // val unservicedCores = waitingApps.iterator.map(_.coresLeft).sum
+        // val requestedCores = waitingApps.iterator.map(a => a.coresLeft + a.coresGranted).sum
+        // val unservicedRatio = unservicedCores.toDouble / requestedCores.toDouble
+        // logWarning(s"unservicedCores= $unservicedCores  requestedCores= $requestedCores")
+        // if (unservicedRatio > 0.10) {
+        //   logWarning(s"Unserviced core ratio is $unservicedRatio - requesting workers")
+        //   requestWorkers()
+        // }
         true
       case None =>
         logWarning(s"Unknown application $appId requested $requestedTotal total executors.")
@@ -883,7 +889,7 @@ private[deploy] class Master(
     }
   }
 
-  private def requestWorkers(): Unit = {
+  private def requestWorkers(appInfo: ApplicationInfo): Unit = {
     // following is test code - eje
     import java.util.ServiceLoader
     import scala.collection.JavaConverters._
@@ -901,16 +907,14 @@ private[deploy] class Master(
     service.foreach { sv =>
       logWarning(s"Configured worker scaleout service: ${sv.getClass.getName}")
       val currentWorkers = workers.iterator.filter(_.state == WorkerState.ALIVE).length
-      val newWorkers = 1
-      val totalWorkers = currentWorkers + newWorkers
-      logWarning(s"Requesting $newWorkers new worker nodes ($totalWorkers total)")
-      sv.request(totalWorkers) match {
+      // val newWorkers = 1
+      // val totalWorkers = currentWorkers + newWorkers
+      // logWarning(s"Requesting $newWorkers new worker nodes ($totalWorkers total)")
+      sv.request(currentWorkers, appInfo.executors.size, appInfo.executorLimit) match {
         case scala.util.Failure(e) =>
           logWarning(s"Worker scaleout request failed: ${e.getMessage}")
-        case scala.util.Success(received) if (received < totalWorkers) =>
-          logWarning(s"Worker scaleout request received only $received of $totalWorkers")
-        case _ =>
-          logInfo(s"Worker scaleout request succeeded with $totalWorkers total workers")
+        case scala.util.Success(newWorkers) =>
+          logWarning(s"Worker scaleout request yielded $newWorkers total workers")
       }
     }
   }
