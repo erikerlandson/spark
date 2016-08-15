@@ -40,7 +40,12 @@ import org.apache.spark.util.{ThreadUtils, Utils}
 
 // Possible rename to ExecutorScaleoutService?
 trait WorkerScaleoutService {
-  def request(curWorkers: Int, curExecutors: Int, reqExecutors: Int): scala.util.Try[Int]
+  def request(
+    curWorkers: Int,
+    curCores: Int,
+    usedCores: Int,
+    curExecutors: Int,
+    reqExecutors: Int): scala.util.Try[Int]
 }
 
 private[deploy] class Master(
@@ -722,6 +727,8 @@ private[deploy] class Master(
       }
     }
     startExecutorsOnWorkers()
+    // eje experiment
+    requestWorkers()
   }
 
   private def launchExecutor(worker: WorkerInfo, exec: ExecutorDesc): Unit = {
@@ -868,7 +875,11 @@ private[deploy] class Master(
         logInfo(s"Application $appId requested to set total executors to $requestedTotal.")
         appInfo.executorLimit = requestedTotal
         schedule()
+        /*
         // eje experimental
+        val coresFree = workers.iterator.map(_.coresFree).sum
+        val cores = workers.iterator.map(_.cores).sum
+        logWarning(s"worker cores= $cores  free= $coresFree")
         val curExecutors = appInfo.executors.size
         logWarning(s"reqExecutors= $requestedTotal  curExecutors= $curExecutors")
         if (curExecutors < requestedTotal) {
@@ -882,6 +893,7 @@ private[deploy] class Master(
         //   logWarning(s"Unserviced core ratio is $unservicedRatio - requesting workers")
         //   requestWorkers()
         // }
+        */
         true
       case None =>
         logWarning(s"Unknown application $appId requested $requestedTotal total executors.")
@@ -889,8 +901,18 @@ private[deploy] class Master(
     }
   }
 
-  private def requestWorkers(appInfo: ApplicationInfo): Unit = {
+  private def requestWorkers(): Unit = {
     // following is test code - eje
+    val alive = () => workers.iterator.filter(_.state == WorkerState.ALIVE)
+    val running = () => apps.iterator.filter(_.state == ApplicationState.RUNNING)
+    val curWorkers = alive().length
+    val curCores = alive().map(_.cores).sum
+    val usedCores = alive().map(_.coresUsed).sum
+    val exec = running().map(_.executors.size).sum
+    val reqExec = running().map(_.executorLimit).sum
+    logWarning(
+      s"schedule(): workers= $curWorkers  cores= $curCores  used= $usedCores" +
+      s"  exec= $exec  req= $reqExec")
     import java.util.ServiceLoader
     import scala.collection.JavaConverters._
     val loader = ServiceLoader.load(classOf[WorkerScaleoutService]).asScala
@@ -910,7 +932,7 @@ private[deploy] class Master(
       // val newWorkers = 1
       // val totalWorkers = currentWorkers + newWorkers
       // logWarning(s"Requesting $newWorkers new worker nodes ($totalWorkers total)")
-      sv.request(currentWorkers, appInfo.executors.size, appInfo.executorLimit) match {
+      sv.request(curWorkers, curCores, usedCores, exec, reqExec) match {
         case scala.util.Failure(e) =>
           logWarning(s"Worker scaleout request failed: ${e.getMessage}")
         case scala.util.Success(newWorkers) =>
